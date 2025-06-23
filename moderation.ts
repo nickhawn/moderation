@@ -1,4 +1,5 @@
 import * as dotenv from "dotenv";
+import * as fs from "fs";
 import OpenAI from "openai";
 
 // Load environment variables
@@ -171,53 +172,14 @@ function shouldWaitForRateLimit(
   return waitTime;
 }
 
-// Test examples that should trigger different moderation categories
-const testExamples = [
-  {
-    name: "Safe Content",
-    text: "This is a normal, safe message about the weather today.",
-  },
-  {
-    name: "Harassment",
-    text: "",
-  },
-  {
-    name: "Harassment/Threatening",
-    text: "",
-  },
-  {
-    name: "Hate Speech",
-    text: "",
-  },
-  {
-    name: "Hate/Threatening",
-    text: "",
-  },
-  {
-    name: "Self-harm",
-    text: "",
-  },
-  {
-    name: "Self-harm/Instructions",
-    text: "",
-  },
-  {
-    name: "Sexual Content",
-    text: "",
-  },
-  {
-    name: "Violence",
-    text: "",
-  },
-  {
-    name: "Violence/Graphic",
-    text: "",
-  },
-  {
-    name: "Potential False Positive - Medical Education",
-    text: "",
-  },
-];
+// Read content from file
+function readContentFromFile(filePath: string = "content.txt"): string {
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch (error) {
+    throw new Error(`Failed to read content from ${filePath}: ${error}`);
+  }
+}
 
 class ModerationApp {
   private client: OpenAI;
@@ -320,35 +282,26 @@ class ModerationApp {
     console.log(""); // Add spacing between results
   }
 
-  async runTests() {
-    this.log("🚀 Starting OpenAI Moderation API Tests");
-    this.log(`Testing ${testExamples.length} examples...`);
-    console.log("");
+  async runModeration() {
+    this.log("🚀 Starting OpenAI Moderation API");
 
-    for (let i = 0; i < testExamples.length; i++) {
-      const example = testExamples[i];
+    try {
+      const content = readContentFromFile();
+      this.log("📄 Content loaded from content.txt");
 
-      try {
-        this.log(`[${i + 1}/${testExamples.length}] Testing: ${example.name}`);
+      const response = await this.moderateText(content);
 
-        const response = await this.moderateText(example.text);
-
-        if (response.results && response.results.length > 0) {
-          this.analyzeResult(response.results[0], example.text);
-        }
-
-        this.logRateLimitInfo();
-
-        // Small delay between requests to be respectful
-        if (i < testExamples.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      } catch (error) {
-        this.log(`❌ Failed to process example "${example.name}":`, error);
+      if (response.results && response.results.length > 0) {
+        this.analyzeResult(response.results[0], content);
       }
+
+      this.logRateLimitInfo();
+    } catch (error) {
+      this.log("❌ Failed to process content:", error);
+      throw error;
     }
 
-    this.log("🎉 All tests completed!");
+    this.log("✅ Moderation completed!");
   }
 }
 
@@ -356,7 +309,7 @@ class ModerationApp {
 async function main() {
   try {
     const app = new ModerationApp();
-    await app.runTests();
+    await app.runModeration();
   } catch (error) {
     console.error("💥 Application failed to start:", error);
     process.exit(1);
