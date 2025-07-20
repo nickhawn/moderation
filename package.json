@@ -1,12 +1,10 @@
 {
-  "name": "openai-moderation-app",
+  "name": "moderation-app",
   "version": "1.0.0",
-  "description": "OpenAI Moderation API testing app with rate limiting",
-  "main": "moderation.js",
+  "description": "OpenAI Moderation API testing",
+  "main": "moderation.ts",
   "scripts": {
-    "dev": "tsx moderation.ts",
-    "build": "tsc moderation.ts",
-    "start": "node moderation.js"
+    "start": "tsx moderation.ts"
   },
   "dependencies": {
     "openai": "^4.63.0",
