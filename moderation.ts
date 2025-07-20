@@ -2,10 +2,8 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import OpenAI from "openai";
 
-// Load environment variables
 dotenv.config();
 
-// Strongly typed enums for moderation categories
 enum ModerationCategory {
   SEXUAL = "sexual",
   SEXUAL_MINORS = "sexual/minors",
@@ -22,7 +20,6 @@ enum ModerationCategory {
   VIOLENCE_GRAPHIC = "violence/graphic",
 }
 
-// Strongly typed interface for moderation categories
 interface ModerationCategories {
   [ModerationCategory.SEXUAL]: boolean;
   [ModerationCategory.SEXUAL_MINORS]: boolean;
@@ -39,7 +36,6 @@ interface ModerationCategories {
   [ModerationCategory.VIOLENCE_GRAPHIC]: boolean;
 }
 
-// Strongly typed interface for category scores
 interface ModerationCategoryScores {
   [ModerationCategory.SEXUAL]: number;
   [ModerationCategory.SEXUAL_MINORS]: number;
@@ -56,7 +52,6 @@ interface ModerationCategoryScores {
   [ModerationCategory.VIOLENCE_GRAPHIC]: number;
 }
 
-// Strongly typed interface for category applied input types
 interface ModerationCategoryAppliedInputTypes {
   [ModerationCategory.SEXUAL]: string[];
   [ModerationCategory.SEXUAL_MINORS]: string[];
@@ -73,7 +68,6 @@ interface ModerationCategoryAppliedInputTypes {
   [ModerationCategory.VIOLENCE_GRAPHIC]: string[];
 }
 
-// Strongly typed interface for a single moderation result
 interface ModerationResult {
   flagged: boolean;
   categories: ModerationCategories;
@@ -81,44 +75,12 @@ interface ModerationResult {
   category_applied_input_types: ModerationCategoryAppliedInputTypes;
 }
 
-// Strongly typed interface for the complete moderation response
 interface ModerationResponse {
   id: string;
   model: string;
   results: ModerationResult[];
 }
 
-// Rate limiting information from headers
-interface RateLimitInfo {
-  limitRequests?: number;
-  limitTokens?: number;
-  remainingRequests?: number;
-  remainingTokens?: number;
-  resetRequests?: string;
-  resetTokens?: string;
-}
-
-// Parse rate limit headers from response
-function parseRateLimitHeaders(headers: Headers): RateLimitInfo {
-  return {
-    limitRequests: headers.get("x-ratelimit-limit-requests")
-      ? parseInt(headers.get("x-ratelimit-limit-requests")!)
-      : undefined,
-    limitTokens: headers.get("x-ratelimit-limit-tokens")
-      ? parseInt(headers.get("x-ratelimit-limit-tokens")!)
-      : undefined,
-    remainingRequests: headers.get("x-ratelimit-remaining-requests")
-      ? parseInt(headers.get("x-ratelimit-remaining-requests")!)
-      : undefined,
-    remainingTokens: headers.get("x-ratelimit-remaining-tokens")
-      ? parseInt(headers.get("x-ratelimit-remaining-tokens")!)
-      : undefined,
-    resetRequests: headers.get("x-ratelimit-reset-requests") || undefined,
-    resetTokens: headers.get("x-ratelimit-reset-tokens") || undefined,
-  };
-}
-
-// Convert time string to milliseconds
 function parseTimeToMs(timeStr: string): number {
   const match = timeStr.match(/(\d+)([smh])/);
   if (!match) return 0;
@@ -138,41 +100,6 @@ function parseTimeToMs(timeStr: string): number {
   }
 }
 
-// Check if we should wait based on rate limits
-function shouldWaitForRateLimit(
-  rateLimitInfo: RateLimitInfo,
-  threshold: number = 0.1
-): number {
-  let waitTime = 0;
-
-  // Check request limits
-  if (
-    rateLimitInfo.remainingRequests !== undefined &&
-    rateLimitInfo.limitRequests !== undefined
-  ) {
-    const requestsRatio =
-      rateLimitInfo.remainingRequests / rateLimitInfo.limitRequests;
-    if (requestsRatio < threshold && rateLimitInfo.resetRequests) {
-      waitTime = Math.max(waitTime, parseTimeToMs(rateLimitInfo.resetRequests));
-    }
-  }
-
-  // Check token limits
-  if (
-    rateLimitInfo.remainingTokens !== undefined &&
-    rateLimitInfo.limitTokens !== undefined
-  ) {
-    const tokensRatio =
-      rateLimitInfo.remainingTokens / rateLimitInfo.limitTokens;
-    if (tokensRatio < threshold && rateLimitInfo.resetTokens) {
-      waitTime = Math.max(waitTime, parseTimeToMs(rateLimitInfo.resetTokens));
-    }
-  }
-
-  return waitTime;
-}
-
-// Read content from file
 function readContentFromFile(filePath: string = "content.txt"): string {
   try {
     return fs.readFileSync(filePath, "utf8").trim();
@@ -183,7 +110,6 @@ function readContentFromFile(filePath: string = "content.txt"): string {
 
 class ModerationApp {
   private client: OpenAI;
-  private rateLimitInfo: RateLimitInfo = {};
 
   constructor() {
     if (!process.env.OPENAI_API_KEY) {
@@ -198,23 +124,9 @@ class ModerationApp {
   }
 
   private log(message: string, data?: any) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${message}`);
+    console.log(message);
     if (data) {
       console.log(JSON.stringify(data, null, 2));
-    }
-  }
-
-  private logRateLimitInfo() {
-    if (Object.keys(this.rateLimitInfo).length > 0) {
-      this.log("Rate Limit Info:", this.rateLimitInfo);
-
-      const waitTime = shouldWaitForRateLimit(this.rateLimitInfo);
-      if (waitTime > 0) {
-        this.log(
-          `⚠️  Approaching rate limit. Would wait ${waitTime}ms before next request.`
-        );
-      }
     }
   }
 
@@ -226,26 +138,15 @@ class ModerationApp {
         }"`
       );
 
-      // Check if we should wait before making the request
-      const waitTime = shouldWaitForRateLimit(this.rateLimitInfo);
-      if (waitTime > 0) {
-        this.log(`⏳ Waiting ${waitTime}ms due to rate limit proximity...`);
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-      }
-
       const response = await this.client.moderations.create({
         model: "omni-moderation-latest",
         input: text,
       });
 
-      // Parse rate limit headers if available
-      // Note: The OpenAI SDK might not expose raw headers, so this is a conceptual implementation
-      // In a real implementation, you might need to use fetch directly or access response headers differently
-
-      this.log("✅ Moderation completed");
+      this.log("✔️ Moderation completed");
       return response as ModerationResponse;
     } catch (error) {
-      this.log("❌ Error during moderation:", error);
+      this.log("✖️ Error during moderation:", error);
       throw error;
     }
   }
@@ -256,7 +157,7 @@ class ModerationApp {
         inputText.length > 30 ? "..." : ""
       }"`
     );
-    this.log(`Flagged: ${result.flagged ? "🚨 YES" : "✅ NO"}`);
+    this.log(`Flagged: ${result.flagged ? "🚨 YES" : "✔️ NO"}`);
 
     if (result.flagged) {
       const flaggedCategories = Object.entries(result.categories)
@@ -279,7 +180,7 @@ class ModerationApp {
       }
     }
 
-    console.log(""); // Add spacing between results
+    console.log("");
   }
 
   async runModeration() {
@@ -294,18 +195,15 @@ class ModerationApp {
       if (response.results && response.results.length > 0) {
         this.analyzeResult(response.results[0], content);
       }
-
-      this.logRateLimitInfo();
     } catch (error) {
       this.log("❌ Failed to process content:", error);
       throw error;
     }
 
-    this.log("✅ Moderation completed!");
+    this.log("✔️ Moderation completed!");
   }
 }
 
-// Main execution
 async function main() {
   try {
     const app = new ModerationApp();
@@ -316,7 +214,6 @@ async function main() {
   }
 }
 
-// Run the application
 if (require.main === module) {
   main();
 }
